@@ -13,6 +13,8 @@ function setApiKey(key) {
 // ---- STATE ----
 let currentUnit = 'ft';
 let lastResult = null; // { feet, detail, confidence }
+let currentBase64 = null; // stored after photo is taken
+let tapTarget = null; // { xPct, yPct } - where user tapped as percentage
 
 // ---- DOM ----
 const $ = id => document.getElementById(id);
@@ -35,18 +37,20 @@ cameraInput.addEventListener('change', async (e) => {
     const reader = new FileReader();
     reader.onload = async (ev) => {
         const dataUrl = ev.target.result;
-        preview.src = dataUrl;
+        const resized = await resizeImage(dataUrl, 1024);
+        preview.src = resized;
         preview.classList.remove('hidden');
         placeholder.classList.add('hidden');
         result.classList.add('hidden');
-        loading.classList.remove('hidden');
+        $('tap-pin').classList.add('hidden');
+        $('tap-hint').classList.remove('hidden');
+        currentBase64 = resized.split(',')[1];
+        tapTarget = null;
 
+        // Auto-estimate the main subject right away
+        loading.classList.remove('hidden');
         try {
-            const resized = await resizeImage(dataUrl, 1024);
-            preview.src = resized;
-            const base64 = resized.split(',')[1];
-            const mediaType = 'image/jpeg';
-            await estimateDistance(base64, mediaType);
+            await estimateDistance(currentBase64, 'image/jpeg', null);
         } catch (err) {
             showError(err.message || 'Something went wrong');
         } finally {
@@ -54,6 +58,39 @@ cameraInput.addEventListener('change', async (e) => {
         }
     };
     reader.readAsDataURL(file);
+});
+
+// ---- TAP TO TARGET ----
+$('photo-area').addEventListener('click', async (e) => {
+    if (!currentBase64 || !preview.src) return;
+    // Don't trigger on the camera button
+    if (e.target === cameraInput || e.target.closest('#snap-btn')) return;
+
+    const rect = preview.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const xPct = Math.round((x / rect.width) * 100);
+    const yPct = Math.round((y / rect.height) * 100);
+
+    // Show pin
+    const pin = $('tap-pin');
+    pin.style.left = (x / $('photo-area').offsetWidth * 100) + '%';
+    pin.style.top = (y / $('photo-area').offsetHeight * 100) + '%';
+    pin.classList.remove('hidden');
+    $('tap-hint').classList.add('hidden');
+
+    tapTarget = { xPct, yPct };
+
+    // Estimate for tapped spot
+    loading.classList.remove('hidden');
+    result.classList.add('hidden');
+    try {
+        await estimateDistance(currentBase64, 'image/jpeg', tapTarget);
+    } catch (err) {
+        showError(err.message || 'Something went wrong');
+    } finally {
+        loading.classList.add('hidden');
+    }
 });
 
 // ---- IMAGE RESIZE ----
@@ -85,8 +122,28 @@ function resizeImage(dataUrl, maxDim) {
 }
 
 // ---- AI DISTANCE ESTIMATION ----
-async function estimateDistance(base64Image, mediaType) {
-    const prompt = `You are a distance estimation tool. Look at this photo and estimate how far away the main subject/object is from the camera.
+async function estimateDistance(base64Image, mediaType, target) {
+    let prompt;
+    if (target) {
+        prompt = `You are a distance estimation tool. The user tapped a specific point on this photo at approximately ${target.xPct}% from the left and ${target.yPct}% from the top. Estimate how far away the object/surface at THAT specific tapped location is from the camera.
+
+Rules:
+- Focus on what is at that specific point in the image (${target.xPct}% from left, ${target.yPct}% from top)
+- Give your best estimate in FEET as a single number
+- Identify what is at the tapped location
+- Explain briefly how you estimated
+- Rate your confidence: high, medium, or low
+- Be direct and concise
+
+Respond in EXACTLY this JSON format, nothing else:
+{
+  "feet": 25,
+  "object": "the fence post",
+  "detail": "The tapped point is on a fence post. Based on typical fence post height of 4ft and its apparent size in frame.",
+  "confidence": "medium"
+}`;
+    } else {
+        prompt = `You are a distance estimation tool. Look at this photo and estimate how far away the main subject/object is from the camera.
 
 Rules:
 - Give your best estimate in FEET as a single number
@@ -102,6 +159,7 @@ Respond in EXACTLY this JSON format, nothing else:
   "detail": "Based on the apparent size of the tree trunk and canopy relative to the frame, and typical oak tree dimensions of 40-60ft tall.",
   "confidence": "medium"
 }`;
+    }
 
     const apiKey = getApiKey();
     if (!apiKey) throw new Error('No API key set');
