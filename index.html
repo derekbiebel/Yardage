@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Yardage</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <div id="header">
+            <h1>Yardage</h1>
+            <p class="subtitle">Point. Snap. Know the distance.</p>
+        </div>
+
+        <!-- Camera / Photo Area -->
+        <div id="photo-area">
+            <div id="placeholder">
+                <div class="placeholder-icon">📷</div>
+                <p>Take a photo to estimate distance</p>
+            </div>
+            <img id="preview" class="hidden" alt="Photo preview">
+            <div id="loading" class="hidden">
+                <div class="spinner"></div>
+                <p>Estimating distance...</p>
+            </div>
+        </div>
+
+        <!-- Result -->
+        <div id="result" class="hidden">
+            <div id="distance-display">
+                <span id="distance-value">--</span>
+                <span id="distance-unit">ft</span>
+            </div>
+            <p id="distance-detail"></p>
+            <p id="distance-confidence"></p>
+        </div>
+
+        <!-- Controls -->
+        <div id="controls">
+            <label id="snap-btn" for="camera-input">
+                <div class="snap-circle"></div>
+            </label>
+            <input type="file" id="camera-input" accept="image/*" capture="environment">
+        </div>
+
+        <!-- Unit Toggle -->
+        <div id="unit-toggle">
+            <button class="unit-btn active" data-unit="ft">Feet</button>
+            <button class="unit-btn" data-unit="yd">Yards</button>
+            <button class="unit-btn" data-unit="m">Meters</button>
+        </div>
+
+        <!-- API Key Setup -->
+        <div id="key-setup" class="hidden">
+            <div class="key-card">
+                <h3>Setup Required</h3>
+                <p>Enter your Anthropic API key to use Yardage. Your key is stored locally in your browser — never sent anywhere except Anthropic's API.</p>
+                <input type="password" id="key-input" placeholder="sk-ant-api03-...">
+                <button id="key-save">Save Key</button>
+                <p class="key-hint">Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a></p>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <p id="footer">AI-powered estimate · Not a precision tool</p>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
