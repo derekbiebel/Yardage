@@ -42,8 +42,10 @@ cameraInput.addEventListener('change', async (e) => {
         loading.classList.remove('hidden');
 
         try {
-            const base64 = dataUrl.split(',')[1];
-            const mediaType = file.type || 'image/jpeg';
+            const resized = await resizeImage(dataUrl, 1024);
+            preview.src = resized;
+            const base64 = resized.split(',')[1];
+            const mediaType = 'image/jpeg';
             await estimateDistance(base64, mediaType);
         } catch (err) {
             showError(err.message || 'Something went wrong');
@@ -53,6 +55,34 @@ cameraInput.addEventListener('change', async (e) => {
     };
     reader.readAsDataURL(file);
 });
+
+// ---- IMAGE RESIZE ----
+// Resize image to max dimension to keep API requests small
+function resizeImage(dataUrl, maxDim) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            let w = img.width;
+            let h = img.height;
+            if (w > maxDim || h > maxDim) {
+                if (w > h) {
+                    h = Math.round(h * maxDim / w);
+                    w = maxDim;
+                } else {
+                    w = Math.round(w * maxDim / h);
+                    h = maxDim;
+                }
+            }
+            const c = document.createElement('canvas');
+            c.width = w;
+            c.height = h;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(c.toDataURL('image/jpeg', 0.8));
+        };
+        img.src = dataUrl;
+    });
+}
 
 // ---- AI DISTANCE ESTIMATION ----
 async function estimateDistance(base64Image, mediaType) {
@@ -108,8 +138,14 @@ Respond in EXACTLY this JSON format, nothing else:
     });
 
     if (!response.ok) {
-        const err = await response.text();
-        throw new Error('API error: ' + response.status + ' ' + err);
+        let errMsg;
+        try {
+            const err = await response.json();
+            errMsg = err.error?.message || JSON.stringify(err);
+        } catch (e) {
+            errMsg = response.status + ' ' + response.statusText;
+        }
+        throw new Error(errMsg);
     }
 
     const data = await response.json();
